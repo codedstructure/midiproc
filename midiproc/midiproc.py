@@ -1,15 +1,13 @@
 """
 midiproc - a coroutine-based MIDI processing package
-
 """
 
-from co_util import coroutine, 
+from co_util import coroutine, net_source, hex_print, iter_source, net_sink, NullSink
 
 EOX = '\xF7'  # end of sysex
 SOX = '\xF0'  # start of sysex
 SYS_COM_BASE = '\xF0'
 SYS_RT_BASE = '\xF8'
-
 
 
 @coroutine
@@ -75,7 +73,7 @@ def midi_in_stream(msg_target, rt_target=None, sysex_target=None):
         else: # databyte
             if rstat:
                 msg += rx
-                bytecount -= 1                    
+                bytecount -= 1
                 if bytecount == 0:
                     bytecount = origbytecount # reset counter for new databytes with rstat
                     msgbytes = map(ord, msg)
@@ -86,23 +84,21 @@ def midi_in_stream(msg_target, rt_target=None, sysex_target=None):
 
 @coroutine
 def midi_out_ftdi():
-    from pylibftdi import Driver
-    d = Driver()
-    d.open()
-    d.baudrate = 31250
-    while True:
-        rx = (yield)
-        d.write(rx)
+    from pylibftdi import Device
+    with Device() as d:
+        d.baudrate = 31250
+        while True:
+            rx = (yield)
+            d.write(rx)
 
 @coroutine
 def midi_in_ftdi(target):
-    from pylibftdi import Driver
-    d = Driver()
-    d.open()
-    d.baudrate = 31250
-    while True:
-        rx = d.read(1)
-        target.send(rx)
+    from pylibftdi import Device
+    with Device() as d:
+        d.baudrate = 31250
+        while True:
+            rx = d.read(1)
+            target.send(rx)
 
 @coroutine
 def process_smf_track(target):
@@ -197,7 +193,9 @@ def net_server():
              hex_print,
              harmonize,
              #drop_off,
-             midi_out_ftdi]
+             hex_print,
+             #midi_out_ftdi
+             ]
 
     result = None
     for fn in reversed(chain):

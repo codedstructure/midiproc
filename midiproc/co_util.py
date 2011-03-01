@@ -1,6 +1,5 @@
 """
 some coroutine helpers and utilities
-i
 
 References:
 [dabeaz]: http://www.dabeaz.com/coroutines/
@@ -92,10 +91,14 @@ def net_source(addr, target):
     except AttributeError:
         s = net_source._socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        s.bind(addr) # TODO: have a mapping addr -> socket 
+        s.bind(addr) # TODO: have a mapping addr -> socket
     while True:
-        data = s.recv(8192)
-        target.send(data)
+        # XXX: what is the equivalent of having a loop
+        # and break on recv() returning null for TCP?
+        # do we simply lose anything over (buflen) bytes
+        # on a UDP recv?
+        rx = s.recv(8192)
+        target.send(rx)
 
 @coroutine
 def net_sink(addr):
