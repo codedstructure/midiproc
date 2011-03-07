@@ -2,7 +2,7 @@
 midiproc - a coroutine-based MIDI processing package
 """
 
-from co_util import coroutine, net_source, hex_print, iter_source, net_sink, NullSink
+from co_util import coroutine, net_source, hex_print, iter_source, net_sink, NullSink, file_source
 
 EOX = '\xF7'  # end of sysex
 SOX = '\xF0'  # start of sysex
@@ -100,11 +100,50 @@ def midi_in_ftdi(target):
             rx = d.read(1)
             target.send(rx)
 
+
 @coroutine
 def process_smf_track(target):
+    """
+    in: bytes from smf track
+    out: messages
+    """
     import time
-    # in: bytes from smf track
-    # out: messages
+    tempo_us_per_beat = 1000000/ (120/60.0)
+
+    # MThd header
+    expected_header = 'MThd'
+    for i in range(4):
+        rx = (yield)
+        assert rx == expected_header[i]
+    length = 0
+    for i in range(4):
+        rx = (yield)
+        length = 256*length + ord(rx)
+    assert length == 6, 'expected header length of 6'
+    mid_fmt = 0
+    for i in range(2):
+        rx = (yield)
+        mid_fmt = 256*mid_fmt + ord(rx)
+    assert mid_fmt == 0, 'only midi format 0 files supported'
+    track_count = 0
+    for i in range(2):
+        rx = (yield)
+        track_count= 256*track_count + ord(rx)
+    assert track_count == 1, 'wanted a single track...'
+    ppqn = 0
+    for i in range(2):
+        rx = (yield)
+        ppqn = 256*ppqn + ord(rx)
+    # MTrk header
+    expected_header = 'MTrk'
+    for i in range(4):
+        rx = (yield)
+        assert rx == expected_header[i]
+    length = 0
+    for i in range(4):
+        rx = (yield)
+        length = 256*length + ord(rx)
+    # the data...
     while True:
         l = 0
         for count in range(4):
@@ -113,7 +152,7 @@ def process_smf_track(target):
             l = l*128 + (z & 127)
             if (z & 128) == 0:
                 break
-        time.sleep(0.0005*l)
+        time.sleep(l/float(ppqn) * tempo_us_per_beat*1.0e-6)
 
         rx = (yield)
         if (rx == SOX or rx == EOX):
@@ -123,11 +162,21 @@ def process_smf_track(target):
                 rx = (yield) # throw it away
             continue
         elif ( rx == '\xFF'): # meta event
-            rx = (yield) # skip type - don't care
-            rx = (yield) # length
-            length = ord(rx)
-            for b in range(length):
+            rx = (yield) # event type
+            if rx == '\x51':
                 rx = (yield)
+                assert rx == '\x03' # data length
+                # set tempo
+                tempo = 0
+                for i in range(3):
+                    rx = (yield)
+                    tempo = 256*tempo + ord(rx)
+                tempo_us_per_beat = tempo
+            else: # don't care about other meta events
+                rx = (yield) # length
+                length = ord(rx)
+                for b in range(length):
+                    rx = (yield)
             continue
         elif (rx >= '\x80'):
             # get new running status
@@ -165,11 +214,13 @@ from mid_data import d as midi_track
 import itertools, functools
 
 def main():
-    chain = [functools.partial(iter_source,itertools.imap(chr, midi_track)),
+    chain = [#functools.partial(iter_source,itertools.imap(chr, midi_track)),
+             functools.partial(file_source, 'virus_arp.mid'),
              process_smf_track,
              midi_in_stream,
              hex_print,
-             midi_out_ftdi]
+             #midi_out_ftdi
+             ]
 
     result = None
     for fn in reversed(chain):
@@ -204,7 +255,9 @@ def net_server():
 
 if __name__ == '__main__':
     import sys
-    if sys.argv[1] == 'client':
+    if len(sys.argv) == 1:
+        main()
+    elif sys.argv[1] == 'client':
        net_client()
     elif sys.argv[1] == 'server':
        net_server()

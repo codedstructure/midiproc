@@ -117,6 +117,8 @@ def file_source(path, target):
         while True:
             try:
                 c = f.read(1)
+                if c == '':
+                    break
                 target.send(c)
             except IOError:
                 break
