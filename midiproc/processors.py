@@ -2,7 +2,7 @@
 midiproc - a coroutine-based MIDI processing package
 """
 
-from co_util import coroutine, net_source, iter_source, net_sink, NullSink, file_source
+from .co_util import coroutine, net_source, iter_source, net_sink, NullSink, file_source
 
 EOX = b'\xF7'  # end of sysex
 SOX = b'\xF0'  # start of sysex
@@ -264,61 +264,8 @@ def harmonize(target):
                 rx = ''.join((rx[0], chr(ord(rx[1]) - 24), rx[2]))
                 target.send(rx)
 
-from mid_data import d as midi_track
-import itertools
-import functools
 
-
-def main():
-    chain = [
-        # functools.partial(iter_source,itertools.imap(chr, midi_track)),
-        functools.partial(file_source, 'virus_arp.mid'),
-        process_smf_track,
-        midi_in_stream,
-        hex_print,
-        midi_out_ftdi
-    ]
-
-    chain = [midi_in_snddev, midi_in_stream, hex_print, midi_out_snddev]
-
+def chain(iterable):
     result = None
-    for fn in reversed(chain):
+    for fn in reversed(iterable):
         result = fn(result) if result is not None else fn()
-#    iter_source(itertools.imap(chr,midi_track),
-#                process_smf_track(midi_in_stream(hex_print(midi_out_ftdi()))))
-
-
-def net_client():
-    chain = [functools.partial(iter_source, itertools.imap(chr, midi_track)),
-             process_smf_track,
-             midi_in_stream,
-             hex_print,
-             functools.partial(net_sink, ('localhost', 4455))]
-
-    result = None
-    for fn in reversed(chain):
-        result = fn(result) if result is not None else fn()
-
-
-def net_server():
-    chain = [functools.partial(net_source, ('localhost', 4455)),
-             hex_print,
-             harmonize,
-             # drop_off,
-             hex_print,
-             # midi_out_ftdi
-             ]
-
-    result = None
-    for fn in reversed(chain):
-        result = fn(result) if result is not None else fn()
-
-
-if __name__ == '__main__':
-    import sys
-    if len(sys.argv) == 1:
-        main()
-    elif sys.argv[1] == 'client':
-        net_client()
-    elif sys.argv[1] == 'server':
-        net_server()
