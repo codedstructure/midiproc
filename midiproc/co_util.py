@@ -59,18 +59,6 @@ class NullSink(object):
     def __nonzero__(self):
         return False
 
-@coroutine
-def hex_print(target=None):
-    "This can be either a sink or a transparent filter"
-    while True:
-        rx = (yield)
-        if isinstance(rx, (str,bytes)):
-            print(' '.join('%02X'%(ord(c)) for c in rx))
-        else:
-            print('%02X '%(rx))
-        if target:
-            target.send(rx)
-
 def iter_source(source, target):
     for entry in source:
         target.send(entry)
